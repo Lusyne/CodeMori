@@ -1,0 +1,32 @@
+name: Bug report / 问题反馈
+description: Report a reproducible CodeMori problem.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "请使用可公开的最小复现项目。不要上传个人资料库、密钥或私有源码。"
+  - type: input
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: OS、CPU、IDE 版本、CodeMori 版本。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps / 复现步骤
+      description: 从打开项目开始说明操作顺序，以及是否能稳定复现。
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual / 预期与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error code or sanitized logs / 错误码或脱敏日志
+      render: text

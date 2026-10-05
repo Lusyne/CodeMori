@@ -1,0 +1,13 @@
+const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../../..');
+const os = { darwin: 'macos', linux: 'linux', win32: 'windows' }[process.platform];
+const arch = { arm64: 'arm64', x64: 'x86_64' }[process.arch];
+if (!os || !arch) throw new Error('Unsupported host');
+execFileSync('cargo', ['build', '--locked', '--release', '-p', 'codemori-cli'], {cwd: root, stdio:'inherit', env:{...process.env, CARGO_TARGET_DIR:path.join(root,'target')}});
+const executable = process.platform === 'win32' ? 'codemori.exe' : 'codemori';
+const dir = path.resolve(__dirname, '../bin', `${os}-${arch}`);
+fs.mkdirSync(dir,{recursive:true}); fs.copyFileSync(path.join(root,'target/release',executable),path.join(dir,executable));
+if (process.platform !== 'win32') fs.chmodSync(path.join(dir,executable),0o755);
+fs.copyFileSync(path.join(root,'LICENSE'),path.resolve(__dirname,'../LICENSE'));

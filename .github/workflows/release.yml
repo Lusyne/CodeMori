@@ -1,0 +1,244 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Require a matching existing version tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          test "$REF_TYPE" = tag
+          python scripts/release.py version --tag "$RELEASE_TAG"
+      - run: python -m unittest discover -s scripts -p 'test_release.py'
+      - run: python -m unittest discover -s scripts -p 'test_marketplace.py'
+
+  build:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: macos-arm64
+          - os: macos-15-intel
+            target: macos-x86_64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+          - os: ubuntu-24.04
+            target: linux-x86_64
+          - os: windows-2022
+            target: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: plugins/vscode/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: cargo test --workspace --locked
+      - run: cargo build --release --locked -p codemori-cli
+      - run: python scripts/package-cli.py
+      - run: npm ci
+        working-directory: plugins/vscode
+      - run: npm test
+        working-directory: plugins/vscode
+      - run: npm run package
+        working-directory: plugins/vscode
+      - name: Test and package JetBrains plugin
+        run: ./gradlew --no-daemon test buildPlugin verifyPluginStructure
+        working-directory: plugins/jetbrains
+      - name: Validate and stage native packages
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TARGET: ${{ matrix.target }}
+        run: python scripts/release.py stage --tag "$RELEASE_TAG" --target "$RELEASE_TARGET"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-native-${{ matrix.target }}
+          path: target/release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  assemble:
+    needs: [validate, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-native-*
+          path: target/release-assets
+          merge-multiple: true
+      - name: Require all platforms and verify checksums
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/release.py finalize --tag "$RELEASE_TAG"
+      - name: Assemble JetBrains Marketplace distribution
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/package-marketplace.py --tag "$RELEASE_TAG" --directory target/release-assets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-complete
+          path: target/release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  publish:
+    needs: assemble
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-complete
+          path: target/release-assets
+      - name: Recheck downloaded artifacts
+        working-directory: target/release-assets
+        run: sha256sum --check SHA256SUMS
+      - name: Publish release and assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          flags=()
+          if [[ "$RELEASE_TAG" == v0.* || "$RELEASE_TAG" == *-* ]]; then
+            flags+=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" target/release-assets/* \
+            --verify-tag --title "CodeMori $RELEASE_TAG" \
+            --notes-file .github/RELEASE_NOTES.md "${flags[@]}"
+
+  # Enable after registering the "lusyne" publisher and authorizing an Entra identity.
+  # Configure AZURE_CLIENT_ID / AZURE_TENANT_ID repository variables; federation
+  # subject: repo:Lusyne@89143291/CodeMori@1405877127:environment:vscode-marketplace
+  # Restrict the GitHub environment to release tags before enabling publishing.
+  # These jobs upload the exact prebuilt VSIX, never rebuild or bump a version.
+  vscode-marketplace:
+    needs: publish
+    if: vars.PUBLISH_VSCODE_MARKETPLACE == 'true'
+    runs-on: ubuntu-24.04
+    environment: vscode-marketplace
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # Avoid concurrent writes to the same extension version.
+      matrix:
+        target: [darwin-arm64, darwin-x64, linux-arm64, linux-x64, win32-x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: plugins/vscode/package-lock.json
+      - run: npm ci
+        working-directory: plugins/vscode
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-complete
+          path: target/release-assets
+      - name: Verify artifact checksums
+        working-directory: target/release-assets
+        run: sha256sum --check SHA256SUMS
+      - name: Require Entra identity configuration
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        run: |
+          test -n "$AZURE_CLIENT_ID" && test -n "$AZURE_TENANT_ID" || { echo 'Configure AZURE_CLIENT_ID and AZURE_TENANT_ID before enabling this job'; exit 1; }
+      - name: Sign in with GitHub federated identity
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Submit platform VSIX
+        working-directory: plugins/vscode
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          VSCODE_TARGET: ${{ matrix.target }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          flags=()
+          if [[ "$version" == 0.* || "$version" == *-* ]]; then
+            flags+=(--pre-release)
+          fi
+          node node_modules/@vscode/vsce/vsce publish --azure-credential \
+            --packagePath "../../target/release-assets/codemori-$version-$VSCODE_TARGET.vsix" \
+            --allow-missing-repository "${flags[@]}"
+
+  # JetBrains requires the FIRST plugin upload to be manual. After that, set
+  # PUBLISH_JETBRAINS_MARKETPLACE=true and JETBRAINS_MARKETPLACE_TOKEN.
+  # Optional JETBRAINS_CHANNEL selects e.g. eap; empty uses the default channel.
+  jetbrains-marketplace:
+    needs: publish
+    if: vars.PUBLISH_JETBRAINS_MARKETPLACE == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-complete
+          path: target/release-assets
+      - name: Verify artifact checksums
+        working-directory: target/release-assets
+        run: sha256sum --check SHA256SUMS
+      - name: Submit universal JetBrains update
+        env:
+          JETBRAINS_MARKETPLACE_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
+          JETBRAINS_CHANNEL: ${{ vars.JETBRAINS_CHANNEL }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          test -n "$JETBRAINS_MARKETPLACE_TOKEN" || { echo 'Configure JETBRAINS_MARKETPLACE_TOKEN before enabling this job'; exit 1; }
+          version="${RELEASE_TAG#v}"
+          channel=()
+          if [[ -n "$JETBRAINS_CHANNEL" ]]; then
+            channel+=(--form-string "channel=$JETBRAINS_CHANNEL")
+          fi
+          curl --fail-with-body --silent --show-error \
+            --header "Authorization: Bearer $JETBRAINS_MARKETPLACE_TOKEN" \
+            --form-string 'xmlId=com.lusyne.codemori' \
+            --form "file=@target/release-assets/codemori-$version-jetbrains-universal.zip" \
+            "${channel[@]}" \
+            --output target/jetbrains-submission.json \
+            https://plugins.jetbrains.com/api/updates/upload
+          echo 'JetBrains update submitted; Marketplace review and availability are separate.'

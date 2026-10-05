@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{CSP}}; style-src {{CSP}}; script-src 'nonce-{{NONCE}}';">
+<link rel="stylesheet" href="{{CSS}}"><title>CodeMori</title></head>
+<body>
+<header><div><h1>CodeMori</h1><p class="muted">代码在哪，文档就在哪。</p></div><button id="refresh" title="刷新本地资料">刷新</button></header>
+<div class="toolbar"><button id="capture" class="primary">保存选中代码</button><button id="associate">关联文档</button>
+<details id="more"><summary>更多</summary><div class="menu"><button id="toggleHints">显示/隐藏代码旁提示</button><button id="repairPaths">修复移动后的文件/目录</button><button id="copyCodeLink">复制代码位置链接</button><button id="openCodeLink">打开代码位置链接</button><button id="identity">设置共享署名</button>
+<button id="indexFile">索引当前文件注释</button><button id="indexWorkspace">增量索引当前工作区注释</button><button id="newSnippet">新建代码片段</button><button id="export">导出个人资料备份…</button><button id="import">预览并导入个人备份…</button><button id="relocate">重新定位工作区…</button>
+</div></details></div>
+<section id="onboarding" class="notice"><p>选中代码保存快照，给当前源码关联已有笔记。搜索覆盖已保存的片段、手填摘要和手动索引的源码注释。</p><button id="dismiss">知道了</button></section>
+<div id="library">
+<section class="search"><label for="query">搜索资料</label><div class="search-line"><input id="query" type="search" placeholder="关键词、标签、场景描述…" autocomplete="off"><button id="search">搜索</button></div>
+<div class="filters"><select id="libraryScope" aria-label="资料范围"><option value="all">个人 + 当前项目共享</option><option value="personal">个人资料</option><option value="project">当前项目共享</option></select><select id="kind" aria-label="来源"><option value="">全部来源</option><option value="snippet">代码片段</option><option value="document">文档摘要</option><option value="comment">源码注释</option></select><select id="tag" aria-label="标签"><option value="">全部标签</option></select>
+<label><input id="projectOnly" type="checkbox">当前项目</label><label><input id="starred" type="checkbox">仅个人收藏</label></div></section>
+<p id="project-status" class="notice" role="status" hidden></p>
+<section class="current"><h2 id="current-file">当前文件</h2><button id="reviewCurrent" disabled>确认当前文件全部待复核</button><p id="review-scope" class="muted">仅确认当前文件显示的待复核关联，包含继承的模块；点击即确认说明仍适用。</p><p id="batch-review-result" class="notice" role="status" hidden></p><div id="documents" class="document-list"></div></section>
+<section><div class="section-heading"><h2>检索结果</h2><span id="count" class="muted"></span></div><ul id="results" class="results" aria-label="检索结果"></ul><p id="empty" class="muted" hidden>没有匹配结果。试试清除筛选、保存片段或关联文档。</p><div class="pagination"><button id="previous">上一页</button><button id="next">下一页</button></div></section>
+<section><h2>源码注释</h2><p id="index-status" class="muted"></p><ul id="comments" class="results" aria-label="源码注释结果"></ul></section>
+<section id="preview" hidden><div class="section-heading"><h2 id="preview-title"></h2><span id="preview-kind" class="badge"></span></div><p id="preview-review" class="notice" hidden></p><p id="preview-authors" class="muted"></p><p id="preview-tags" class="muted"></p><p id="preview-description"></p><pre><code id="preview-code"></code></pre><p id="preview-origin" class="muted"></p>
+<div class="toolbar"><button id="copy">复制</button><button id="previewSnippet" hidden>在编辑区查看快照</button><button id="open">打开来源 / 原文</button><button id="openFeishu" hidden title="尝试唤起已安装的飞书客户端；未打开时可使用浏览器入口">在飞书中打开</button><button id="markdown" hidden>Markdown 只读预览</button><button id="edit">编辑</button><button id="favorite">收藏</button><button id="delete">删除</button></div><div id="doc-actions" class="toolbar" hidden><button id="bind">关联到当前文件</button><button id="bindModule">关联到当前目录</button><button id="changes">查看关联代码变化</button><button id="review">确认说明仍适用</button><button id="unlink">解除文件关联</button><button id="repairBinding">查看 / 修复关联位置</button></div></section>
+</div>
+<section id="editor" hidden><h2 id="editor-title"></h2><p id="binding-hint" class="muted"></p><form id="record-form"><fieldset id="fields"><label id="binding-kind-label">关联范围<select id="bindingKind"><option value="file">当前文件</option><option value="module">当前目录（含子目录）</option></select></label>
+<label for="saveScope">保存范围</label><select id="saveScope"><option value="personal">个人资料（仅本机）</option><option value="project">项目共享（随 Git）</option></select><p id="scope-hint" class="muted"></p>
+<label for="title">标题</label><input id="title" autocomplete="off">
+<div id="code-fields"><label for="language">语言（留空自动识别）</label><input id="language"><label for="content">代码快照</label><textarea id="content" rows="14" spellcheck="false"></textarea></div>
+<div id="url-fields" hidden><label for="url">文档链接或本地路径</label><input id="url" autocomplete="off"></div>
+<label id="description-label" for="description">场景描述</label><textarea id="description" rows="4"></textarea>
+<div id="source-fields" hidden><label for="sourcePath">来源相对路径（可修复）</label><input id="sourcePath"></div>
+<label for="tag-input">标签</label><div class="search-line"><input id="tag-input" list="tag-suggestions" placeholder="输入或选择已有标签"><datalist id="tag-suggestions"></datalist><button id="addTag" type="button">添加</button></div><div id="tag-chips" class="chips"></div>
+<div class="toolbar"><button type="submit" id="save" class="primary">保存</button><button type="button" id="cancel">取消</button></div></fieldset></form><p id="editor-error" class="error" role="alert"></p></section>
+<p id="status" role="status" aria-live="polite"></p>
+<script nonce="{{NONCE}}" src="{{SCRIPT}}"></script></body></html>

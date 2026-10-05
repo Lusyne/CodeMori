@@ -1,0 +1,9 @@
+# Authorized container-only IDE acceptance: virtual display, no host desktop or home mounts.
+ARG BASE_IMAGE=codemori-validation:linux-arm64
+FROM ${BASE_IMAGE}
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends xvfb xauth dbus-x11 \
+        libgtk-3-0 libnss3 libasound2 libgbm1 libxss1 libx11-xcb1 libxkbfile1 \
+        libsecret-1-0 fonts-noto-cjk fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /work/plugins/vscode

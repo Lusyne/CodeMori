@@ -1,0 +1,33 @@
+<idea-plugin>
+    <id>com.lusyne.codemori</id>
+    <name>CodeMori</name>
+    <vendor>Lusyne</vendor>
+    <description><![CDATA[
+        Save code snapshots, search local snippets and document summaries, and link
+        source files to your existing notes in Feishu, Notion or Obsidian.
+        Includes a local Rust core; no separate desktop client is required.
+    ]]></description>
+    <depends>com.intellij.modules.platform</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="CodeMori" anchor="right" icon="/icons/codemori.svg"
+                    factoryClass="com.lusyne.codemori.CodeMoriToolWindowFactory"/>
+        <codeInsight.lineMarkerProvider language="" implementationClass="com.lusyne.codemori.DocumentMarker"/>
+        <jbProtocolCommand implementation="com.lusyne.codemori.CodeLinkProtocol"/>
+    </extensions>
+    <actions>
+        <action id="CodeMori.SaveSelection" class="com.lusyne.codemori.SaveSelectionAction" text="CodeMori: 保存选中代码" description="保存代码快照与来源">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action id="CodeMori.Search" class="com.lusyne.codemori.SearchAction" text="CodeMori: 搜索资料" description="搜索片段和文档摘要">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action id="CodeMori.AssociateDocument" class="com.lusyne.codemori.AssociateDocumentAction" text="CodeMori: 关联文档" description="给当前源码文件关联笔记">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action id="CodeMori.CopyCodeLink" class="com.lusyne.codemori.CopyCodeLinkAction" text="CodeMori: 复制代码位置链接">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action id="CodeMori.OpenCodeLink" class="com.lusyne.codemori.OpenCodeLinkAction" text="CodeMori: 打开代码位置链接"><add-to-group group-id="ToolsMenu" anchor="last"/></action>
+        <action id="CodeMori.Identity" class="com.lusyne.codemori.IdentityAction" text="CodeMori: 设置共享署名"><add-to-group group-id="ToolsMenu" anchor="last"/></action>
+    </actions>
+</idea-plugin>

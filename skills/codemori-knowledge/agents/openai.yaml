@@ -1,0 +1,4 @@
+interface:
+  display_name: "CodeMori 项目知识"
+  short_description: "查找项目代码与关联知识，基于真实实现生成带来源引用的说明文档草稿"
+  default_prompt: "使用 $codemori-knowledge 查找当前项目的相关代码和已有说明，生成带源码引用的文档草稿。"

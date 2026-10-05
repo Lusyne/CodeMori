@@ -1,0 +1,138 @@
+{
+  "name": "codemori",
+  "displayName": "CodeMori",
+  "description": "Local code snapshots and linked document summaries in your editor.",
+  "version": "0.1.0",
+  "publisher": "lusyne",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": false
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "onUri"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codemori.open",
+        "title": "搜索资料",
+        "category": "CodeMori"
+      },
+      {
+        "command": "codemori.saveSelection",
+        "title": "保存选中代码",
+        "category": "CodeMori"
+      },
+      {
+        "command": "codemori.associateDocument",
+        "title": "关联当前文件的文档",
+        "category": "CodeMori"
+      },
+      {
+        "command": "codemori.copyCodeLink",
+        "title": "复制代码位置链接",
+        "category": "CodeMori"
+      },
+      {
+        "command": "codemori.openCodeLink",
+        "title": "打开代码位置链接",
+        "category": "CodeMori"
+      },
+      {
+        "command": "codemori.identity",
+        "title": "设置共享署名",
+        "category": "CodeMori"
+      },
+      {
+        "command": "codemori.toggleHints",
+        "title": "显示/隐藏代码旁文档提示",
+        "category": "CodeMori"
+      },
+      {
+        "command": "codemori.repairPaths",
+        "title": "修复移动后的文件/目录关联",
+        "category": "CodeMori"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codemori.saveSelection",
+          "when": "editorHasSelection && resourceScheme == file",
+          "group": "codemori@1"
+        },
+        {
+          "command": "codemori.associateDocument",
+          "when": "resourceScheme == file",
+          "group": "codemori@2"
+        },
+        {
+          "command": "codemori.copyCodeLink",
+          "when": "resourceScheme == file",
+          "group": "codemori@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "CodeMori",
+      "properties": {
+        "codemori.documentHints.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "在代码上方显示关联文档和待复核提示。关闭不会删除关联或资料。"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codemori",
+          "title": "CodeMori",
+          "icon": "media/codemori.svg"
+        }
+      ]
+    },
+    "views": {
+      "codemori": [
+        {
+          "type": "webview",
+          "id": "codemori.library",
+          "name": "知识库",
+          "contextualTitle": "CodeMori"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "check": "tsc -p . --noEmit",
+    "test": "npm run compile && npm run build:native && node --test dist/test/core.test.js dist/test/webview.test.js dist/test/network-probe.test.js",
+    "build:native": "node scripts/build-native.cjs",
+    "package": "npm run compile && node scripts/package.cjs",
+    "test:host": "npm run compile && npm run build:native && node dist/test/run-host.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "1.96.0",
+    "@vscode/vsce": "^3.6.0",
+    "@vscode/test-electron": "^2.5.2",
+    "jsdom": "^26.1.0",
+    "@types/jsdom": "^21.1.7"
+  }
+}

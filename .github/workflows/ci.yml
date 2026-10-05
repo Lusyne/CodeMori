@@ -1,0 +1,115 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  rust-minimum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - run: python3 -m unittest discover -s scripts -p 'test_release.py'
+      - run: python3 -m unittest discover -s scripts -p 'test_marketplace.py'
+      - run: cargo test --workspace --locked
+      - run: cargo build --release --locked -p codemori-cli
+      - run: python scripts/package-cli.py
+      - run: python -c "import glob,subprocess,sys; archives=glob.glob('target/dist/*.tar.gz')+glob.glob('target/dist/*.zip'); [subprocess.check_call([sys.executable,'scripts/check-cli-package.py',p]) for p in archives]"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codemori-cli-minimum-linux
+          path: target/dist/*
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - run: cargo build --release --locked -p codemori-cli
+      - run: python scripts/package-cli.py
+      - run: python -c "import glob,subprocess,sys; archives=glob.glob('target/dist/*.tar.gz')+glob.glob('target/dist/*.zip'); [subprocess.check_call([sys.executable,'scripts/check-cli-package.py',p]) for p in archives]"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codemori-cli-${{ matrix.os }}
+          path: target/dist/*
+  jetbrains:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: plugins/vscode/package-lock.json
+      - run: npm ci
+        working-directory: plugins/vscode
+      - run: npm run compile
+        working-directory: plugins/vscode
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew --no-daemon -PvscodeInterop="$GITHUB_WORKSPACE/plugins/vscode/dist/test/interop.js" test buildPlugin verifyPluginStructure
+        working-directory: plugins/jetbrains
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: jetbrains-test-reports-${{ matrix.os }}
+          path: |
+            plugins/jetbrains/build/test-results/
+            plugins/jetbrains/build/reports/tests/
+      - run: python3 scripts/check-plugin-package.py plugins/jetbrains/build/distributions/*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codemori-jetbrains-${{ matrix.os }}
+          path: plugins/jetbrains/build/distributions/*.zip
+
+  vscode:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: plugins/vscode/package-lock.json
+      - run: npm ci
+        working-directory: plugins/vscode
+      - run: npm test
+        working-directory: plugins/vscode
+      - run: xvfb-run -a npm run test:host
+        if: runner.os == 'Linux'
+        working-directory: plugins/vscode
+      - run: npm run test:host
+        if: runner.os != 'Linux'
+        working-directory: plugins/vscode
+      - run: npm run package
+        working-directory: plugins/vscode
+      - run: python -c "import glob,subprocess,sys; subprocess.check_call([sys.executable,'scripts/check-vscode-package.py',glob.glob('plugins/vscode/*.vsix')[0]])"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codemori-vscode-${{ matrix.os }}
+          path: plugins/vscode/*.vsix

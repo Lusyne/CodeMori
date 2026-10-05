@@ -1,0 +1,20 @@
+{
+  "name": "codemori-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev . --host 127.0.0.1",
+    "build": "vitepress build .",
+    "preview": "node scripts/preview.mjs",
+    "check": "node scripts/check-site.mjs",
+    "test": "node --test scripts/preview.test.mjs",
+    "check:preview": "node scripts/check-preview.mjs"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4",
+    "sirv": "3.0.2"
+  },
+  "overrides": {
+    "vite": "6.4.3"
+  }
+}

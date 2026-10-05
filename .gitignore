@@ -1,0 +1,10 @@
+/target/
+**/build/
+**/.gradle/
+**/.intellijPlatform/
+.idea/
+*.iml
+.DS_Store
+.env
+.gradle-local.properties
+__pycache__/
