@@ -1,13 +1,34 @@
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import tomllib
 
 from release import ROOT, VSCODE_TARGETS, archive_names, asset_names, binary_name, finalize, version_for_tag
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_version_metadata_uses_utf8_under_a_legacy_windows_locale(self):
+        version = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for file in ["Cargo.toml", "Cargo.lock", "plugins/vscode/package.json", "plugins/vscode/package-lock.json", "plugins/jetbrains/build.gradle.kts"]:
+                dest = root / file; dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes((ROOT / file).read_bytes())
+            package = root / "plugins/vscode/package.json"
+            metadata = json.loads(package.read_text(encoding="utf-8"))
+            metadata["description"] = "配置检查"
+            package.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
+            original_read = Path.read_text
+            def legacy_read(path, encoding=None, **kwargs):
+                return original_read(path, encoding=encoding or "cp1252", **kwargs)
+            with patch.object(Path, "read_text", legacy_read):
+                with self.assertRaises(UnicodeDecodeError):
+                    package.read_text()
+                self.assertEqual(version_for_tag("v" + version, root), version)
+
     def test_tag_requires_consistent_package_versions(self):
         version = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
         self.assertEqual(version_for_tag("v" + version), version)

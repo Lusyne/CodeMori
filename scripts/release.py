@@ -19,13 +19,13 @@ def version_for_tag(tag, root=ROOT):
     if not match:
         raise ValueError("Release tag must be v<major>.<minor>.<patch> with an optional prerelease suffix")
     version = match[1]
-    cargo = tomllib.loads((root / "Cargo.toml").read_text())["workspace"]["package"]["version"]
-    package = json.loads((root / "plugins/vscode/package.json").read_text())["version"]
-    lock = json.loads((root / "plugins/vscode/package-lock.json").read_text())
-    gradle = re.search(r'^version = "([^"]+)"', (root / "plugins/jetbrains/build.gradle.kts").read_text(), re.M)
+    cargo = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
+    package = json.loads((root / "plugins/vscode/package.json").read_text(encoding="utf-8"))["version"]
+    lock = json.loads((root / "plugins/vscode/package-lock.json").read_text(encoding="utf-8"))
+    gradle = re.search(r'^version = "([^"]+)"', (root / "plugins/jetbrains/build.gradle.kts").read_text(encoding="utf-8"), re.M)
     if not gradle or any(v != version for v in [cargo, package, lock["version"], lock["packages"][""]["version"], gradle[1]]):
         raise ValueError("Tag, Cargo, VS Code package/lock and JetBrains versions must match")
-    locked = tomllib.loads((root / "Cargo.lock").read_text())["package"]
+    locked = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))["package"]
     if any(p["version"] != version for p in locked if p["name"] in ("codemori-core", "codemori-cli")):
         raise ValueError("Cargo.lock workspace versions differ")
     return version

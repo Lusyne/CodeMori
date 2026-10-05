@@ -61,7 +61,7 @@ with tempfile.TemporaryDirectory(prefix="codemori-cli-archive-") as directory:
     links = run("rpc", {"op":"code_link_create","root":str(project),"path":source.name,"line":2})
     target = run("rpc", {"op":"code_link_resolve","root":str(project),"url":links["vscode_url"]})["target"]
     assert Path(target["path"]).samefile(source) and target["line"] == 2
-    manifest = (project / ".codemori/shared.json").read_text()
+    manifest = (project / ".codemori/shared.json").read_text(encoding="utf-8")
     assert "workspace_id" not in manifest and "starred" not in manifest and str(root) not in manifest
     combined = run("rpc", {"op": "library_search", "root": str(project)})
     assert combined["total"] == 3 and run("rpc", {"op": "search"})["total"] == 2
