@@ -3,11 +3,6 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      check_vscode_authorization:
-        description: 'Only inspect VS Code Marketplace identity and permissions; do not publish'
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -18,73 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  vscode-authorization:
-    if: github.event_name == 'workflow_dispatch' && inputs.check_vscode_authorization
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    environment: vscode-marketplace
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: plugins/vscode/package-lock.json
-      - run: npm ci --ignore-scripts
-        working-directory: plugins/vscode
-      - uses: azure/login@v3
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          allow-no-subscriptions: true
-      - name: Read Marketplace identity ID
-        id: identity
-        shell: bash
-        run: |
-          identity_id="$(az rest \
-            --url https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
-            --resource 499b84ac-1321-427f-aa17-267ca6975798 \
-            --query id --output tsv)"
-          test -n "$identity_id" && test "$identity_id" != None
-          echo "id=$identity_id" >> "$GITHUB_OUTPUT"
-          printf 'Marketplace identity ID: `%s`\n' "$identity_id" >> "$GITHUB_STEP_SUMMARY"
-      - name: Verify publisher membership
-        working-directory: plugins/vscode
-        run: node node_modules/@vscode/vsce/vsce verify-pat lusyne --azure-credential
-      - name: Require a publishing role for this identity
-        working-directory: plugins/vscode
-        env:
-          MARKETPLACE_IDENTITY_ID: ${{ steps.identity.outputs.id }}
-        run: |
-          node <<'NODE'
-          const { AzureCliCredential } = require('@azure/identity');
-          const { WebApi, getBearerHandler } = require('azure-devops-node-api');
-          const { appendFileSync } = require('node:fs');
-          (async () => {
-            const { token } = await new AzureCliCredential().getToken(
-              '499b84ac-1321-427f-aa17-267ca6975798/.default');
-            const api = await new WebApi('https://marketplace.visualstudio.com',
-              getBearerHandler(token)).getSecurityRolesApi();
-            const assignments = await api.getRoleAssignments('gallery.publisher', 'lusyne');
-            const roles = assignments
-              .filter(item => item.identity.id === process.env.MARKETPLACE_IDENTITY_ID)
-              .map(item => item.role.name);
-            console.log('Current identity publisher roles:', roles.join(', ') || 'none');
-            if (!roles.some(role => ['contributor', 'owner', 'creator'].includes(role.toLowerCase()))) {
-              throw new Error('The current identity needs the Contributor role on publisher lusyne.');
-            }
-            appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-              '\nPublisher role check passed: ' + roles.join(', ') + '. No extension was uploaded.\n');
-          })().catch(error => { console.error(error.message); process.exitCode = 1; });
-          NODE
-
   validate:
-    if: github.event_name != 'workflow_dispatch' || !inputs.check_vscode_authorization
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
